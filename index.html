@@ -80,10 +80,62 @@
           opacity: 0;
         }
       }
+      /* UI 按钮样式 */
+      .btn {
+        background: #ffd700;
+        border: none;
+        padding: 15px 30px;
+        margin: 10px;
+        font-size: 1.2rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 0 #d4b100;
+        transition: all 0.1s;
+        font-family: inherit;
+        width: 220px;
+        color: #333;
+        font-weight: bold;
+        display: block;
+      }
+      .btn:active {
+        transform: translateY(4px);
+        box-shadow: 0 0 0 #d4b100;
+      }
+      .btn-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      #start-screen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, #2c3e50, #3498db);
+        display: flex; /* 默认显示 */
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+      }
     </style>
   </head>
   <body>
     <canvas id="gameCanvas"></canvas>
+
+    <div id="start-screen">
+      <h1>九九乘法表<br />射击游戏</h1>
+      <p style="margin-bottom: 30px">选择难度开始</p>
+      <div class="btn-group">
+        <button class="btn" onclick="startGame('slow')">🐢 慢速 (简单)</button>
+        <button class="btn" onclick="startGame('medium')">
+          🚶 中速 (普通)
+        </button>
+        <button class="btn" onclick="startGame('fast')">🚀 快速 (困难)</button>
+      </div>
+    </div>
 
     <div id="game-over-screen">
       <h1>游戏结束!</h1>
@@ -97,17 +149,26 @@
       /**
        * 游戏配置与全局变量
        */
+
       const canvas = document.getElementById("gameCanvas");
       const ctx = canvas.getContext("2d");
       const gameOverScreen = document.getElementById("game-over-screen");
+      const startScreen = document.getElementById("start-screen");
       const finalScoreSpan = document.getElementById("final-score");
+
+      const difficultySettings = {
+        slow: { baseSpeed: 25, speedVar: 15, interval: 3000 },
+        medium: { baseSpeed: 50, speedVar: 30, interval: 2200 },
+        fast: { baseSpeed: 90, speedVar: 50, interval: 1500 },
+      };
+      let currentDifficulty = "medium";
 
       // 游戏状态
       let gameState = "playing"; // playing, gameover
       let score = 0;
       let lastTime = 0;
       let enemySpawnTimer = 0;
-      let enemySpawnInterval = 2500; // 毫秒
+      let enemySpawnInterval = 500; // 这里的间隔是当前气球消失后多久生成下一个
 
       // 实体容器
       let enemies = [];
@@ -218,11 +279,16 @@
 
           this.radius = 40;
           // 确保气球完全在屏幕内
-          this.x = Math.random() * (stageWidth - this.radius * 2) + this.radius;
+          // 按钮总宽度计算: 3*50 + 2*10 = 170, 半宽 85
+          // 气球半径 40
+          // 需要确保 x - 85 >= 0 且 x + 85 <= stageWidth
+          const safeMargin = 90; // 85 + 5px 边距
+          this.x = Math.random() * (stageWidth - safeMargin * 2) + safeMargin;
           this.y = -this.radius * 2; // 从屏幕上方开始
 
           // 随机生成速度
-          this.speed = 40 + Math.random() * 30; // 像素/秒
+          const cfg = difficultySettings[currentDifficulty];
+          this.speed = cfg.baseSpeed + Math.random() * cfg.speedVar; // 像素/秒
 
           this.active = true;
           this.color = `hsl(${Math.random() * 360}, 70%, 60%)`; // 随机柔和颜色
@@ -272,6 +338,14 @@
 
         update(dt) {
           if (!this.active) return;
+
+          // 动态调整 X 位置以防止窗口改变时溢出
+          const stageWidth = canvas.width / outputScale;
+          const safeMargin = 95;
+          if (this.x < safeMargin) this.x = safeMargin;
+          if (this.x > stageWidth - safeMargin)
+            this.x = stageWidth - safeMargin;
+
           this.y += this.speed * dt;
 
           const stageHeight = canvas.height / outputScale;
@@ -288,34 +362,7 @@
           // 可以在这里播放音效
         }
 
-        // 检查给定的坐标 (inputX, inputY) 是否点击了这个敌人的某个选项
-        checkInput(inputX, inputY) {
-          if (!this.active) return false;
-
-          // 选项框的相对位置
-          // 选项绘制在气球下方
-          const boxW = 50;
-          const boxH = 30;
-          const gap = 10;
-          const totalW = 3 * boxW + 2 * gap;
-          const startOffset = -totalW / 2;
-
-          for (let i = 0; i < 3; i++) {
-            const optX = this.x + startOffset + i * (boxW + gap);
-            const optY = this.y + this.radius + 10; // 气球下方
-
-            // 简单的矩形碰撞检测
-            if (
-              inputX >= optX &&
-              inputX <= optX + boxW &&
-              inputY >= optY &&
-              inputY <= optY + boxH
-            ) {
-              return this.optionData[i].isCorrect;
-            }
-          }
-          return null; // 没有点中任何选项
-        }
+        // 旧逻辑已废弃，现在使用全局UI
 
         draw(ctx) {
           // 绘制气球绳子
@@ -350,38 +397,7 @@
           ctx.textBaseline = "middle";
           ctx.fillText(this.questionText, this.x, this.y);
 
-          // 绘制选项按钮
-          const boxW = 50;
-          const boxH = 30;
-          const gap = 10;
-          const totalW = 3 * boxW + 2 * gap;
-          const startOffset = -totalW / 2;
-
-          ctx.font = "16px Arial";
-
-          for (let i = 0; i < 3; i++) {
-            const optX = this.x + startOffset + i * (boxW + gap);
-            const optY = this.y + this.radius + 10;
-
-            // 按钮背景
-            ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-            ctx.beginPath();
-            ctx.roundRect(optX, optY, boxW, boxH, 5);
-            ctx.fill();
-
-            // 边框
-            ctx.strokeStyle = "#333";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // 选项数字
-            ctx.fillStyle = "#333";
-            ctx.fillText(
-              this.optionData[i].val,
-              optX + boxW / 2,
-              optY + boxH / 2
-            );
-          }
+          // 注意：选项不再跟随气球绘制
         }
       }
 
@@ -424,7 +440,15 @@
        * 游戏主循环逻辑
        */
 
-      function startGame() {
+      function startGame(difficulty) {
+        if (difficulty) {
+          currentDifficulty = difficulty;
+        }
+
+        // 应用难度设置
+        // 应用难度设置 - 设置为很短的生成间隔，因为我们要等上一个消失才生成
+        enemySpawnInterval = 500;
+
         gameState = "playing";
         score = 0;
         enemies = [];
@@ -433,6 +457,7 @@
         enemySpawnTimer = 0;
         lastTime = performance.now();
         gameOverScreen.style.display = "none";
+        startScreen.style.display = "none";
         requestAnimationFrame(gameLoop);
       }
 
@@ -457,15 +482,13 @@
 
       function update(dt) {
         // 生成敌人
-        enemySpawnTimer += dt * 1000;
-        if (enemySpawnTimer > enemySpawnInterval) {
-          // 限制最大敌人数量
-          if (enemies.length < 6) {
+        // 生成敌人 (单一敌人模式)
+        if (enemies.length === 0) {
+          enemySpawnTimer += dt * 1000;
+          if (enemySpawnTimer > enemySpawnInterval) {
             enemies.push(new Enemy());
-            // 随着分数增加，难度微调（生成或者速度）
-            if (enemySpawnInterval > 1000) enemySpawnInterval -= 10;
+            enemySpawnTimer = 0;
           }
-          enemySpawnTimer = 0;
         }
 
         // 更新敌人
@@ -491,7 +514,7 @@
 
         // 绘制炮台 (简单的底部居中)
         const turretX = stageWidth / 2;
-        const turretY = stageHeight - 40;
+        const turretY = stageHeight - 120; // 炮台向上移动，给底部按钮留空间
 
         // 炮台底座
         ctx.fillStyle = "#555";
@@ -505,12 +528,53 @@
         bullets.forEach((b) => b.draw(ctx));
         particles.forEach((p) => p.draw(ctx));
 
+        // 绘制底部 UI 按钮
+        if (enemies.length > 0) {
+          drawBottomUI(ctx, enemies[0]);
+        }
+
         // 绘制 UI
         ctx.fillStyle = "#333";
         ctx.font = "bold 24px Arial";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
         ctx.fillText(`得分: ${score}`, 20, 20);
+      }
+
+      function drawBottomUI(ctx, enemy) {
+        const stageWidth = canvas.width / outputScale;
+        const stageHeight = canvas.height / outputScale;
+
+        const boxW = 100; // 更宽的按钮
+        const boxH = 60;
+        const gap = 20;
+        const totalW = 3 * boxW + 2 * gap;
+        const startX = (stageWidth - totalW) / 2;
+        const startY = stageHeight - 80;
+
+        ctx.font = "bold 28px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        enemy.optionData.forEach((opt, i) => {
+          const x = startX + i * (boxW + gap);
+          const y = startY;
+
+          // 按钮背景
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.roundRect(x, y, boxW, boxH, 10);
+          ctx.fill();
+
+          // 边框
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // 选项数字
+          ctx.fillStyle = "#333";
+          ctx.fillText(opt.val, x + boxW / 2, y + boxH / 2);
+        });
       }
 
       /**
@@ -541,27 +605,49 @@
         const inputX = (clientX - rect.left) * scaleX;
         const inputY = (clientY - rect.top) * scaleY;
 
-        // 检测是否点击了任何敌人的正确答案
-        let shotFired = false;
+        // 检测是否点击了底部按钮
+        if (enemies.length === 0) return;
 
-        // 倒序遍历，优先检测上层的（虽然一般不重叠）
-        for (let i = enemies.length - 1; i >= 0; i--) {
-          const enemy = enemies[i];
-          const result = enemy.checkInput(inputX, inputY);
+        const enemy = enemies[0];
 
-          if (result === true) {
-            // 答对了！从炮台发射子弹
-            const stageWidth = canvas.width / outputScale;
-            const stageHeight = canvas.height / outputScale;
-            const startX = stageWidth / 2;
-            const startY = stageHeight - 60; // 炮口位置
+        const stageWidth = canvas.width / outputScale;
+        const stageHeight = canvas.height / outputScale;
 
-            bullets.push(new Bullet(startX, startY, enemy));
-            shotFired = true;
-            break; // 一次只射击一个
-          } else if (result === false) {
+        const boxW = 100;
+        const boxH = 60;
+        const gap = 20;
+        const totalW = 3 * boxW + 2 * gap;
+        const startX = (stageWidth - totalW) / 2;
+        const startY = stageHeight - 80;
+
+        let clickedIndex = -1;
+
+        for (let i = 0; i < 3; i++) {
+          const x = startX + i * (boxW + gap);
+          const y = startY;
+
+          if (
+            inputX >= x &&
+            inputX <= x + boxW &&
+            inputY >= y &&
+            inputY <= y + boxH
+          ) {
+            clickedIndex = i;
+            break;
+          }
+        }
+
+        if (clickedIndex !== -1) {
+          const isCorrect = enemy.optionData[clickedIndex].isCorrect;
+
+          if (isCorrect) {
+            // 发射子弹
+            const turretX = stageWidth / 2;
+            const turretY = stageHeight - 140; // 炮口位置调整
+
+            bullets.push(new Bullet(turretX, turretY, enemy));
+          } else {
             // 答错了
-            // 可选：屏幕抖动或音效
             canvas.style.transform = "translate(5px, 0)";
             setTimeout(() => (canvas.style.transform = "none"), 50);
           }
@@ -573,17 +659,19 @@
       canvas.addEventListener("touchstart", handleInput, { passive: false });
 
       // 重新开始的点击侦听（因为遮罩层盖住了canvas）
-      gameOverScreen.addEventListener("mousedown", () => {
-        if (gameState === "gameover") startGame();
+
+      function returnToMenu(e) {
+        if (e.type === "touchstart") e.preventDefault();
+        if (gameState === "gameover") {
+          gameOverScreen.style.display = "none";
+          startScreen.style.display = "flex";
+        }
+      }
+
+      gameOverScreen.addEventListener("mousedown", returnToMenu);
+      gameOverScreen.addEventListener("touchstart", returnToMenu, {
+        passive: false,
       });
-      gameOverScreen.addEventListener(
-        "touchstart",
-        (e) => {
-          e.preventDefault();
-          if (gameState === "gameover") startGame();
-        },
-        { passive: false }
-      );
 
       // 启动游戏
       // 添加一个简单的 Polyfill roundRect 以防旧浏览器不支持
@@ -607,8 +695,6 @@
           return this;
         };
       }
-
-      startGame();
     </script>
   </body>
 </html>
