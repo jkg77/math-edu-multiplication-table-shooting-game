@@ -647,9 +647,8 @@
 
             bullets.push(new Bullet(turretX, turretY, enemy));
           } else {
-            // 答错了
-            canvas.style.transform = "translate(5px, 0)";
-            setTimeout(() => (canvas.style.transform = "none"), 50);
+            // 答错了 - 触发游戏结束
+            triggerGameOver();
           }
         }
       }
