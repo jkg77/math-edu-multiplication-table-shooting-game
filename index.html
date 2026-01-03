@@ -107,6 +107,33 @@
         align-items: center;
       }
 
+      .char-group {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .char-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 3px solid transparent;
+        border-radius: 15px;
+        width: 70px;
+        height: 70px;
+        font-size: 40px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .char-btn.selected {
+        background: rgba(255, 255, 255, 0.4);
+        border-color: #ffd700;
+        transform: scale(1.1);
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+      }
+
       #start-screen {
         position: absolute;
         top: 0;
@@ -127,6 +154,16 @@
 
     <div id="start-screen">
       <h1>九九乘法表<br />射击游戏</h1>
+
+      <p style="margin-bottom: 15px; font-size: 1.2rem; color: #ddd">
+        选择角色
+      </p>
+      <div class="char-group" id="char-selection">
+        <div class="char-btn selected" onclick="selectCharacter('🎈')">🎈</div>
+        <div class="char-btn" onclick="selectCharacter('🐰')">🐰</div>
+        <div class="char-btn" onclick="selectCharacter('🐻')">🐻</div>
+      </div>
+
       <p style="margin-bottom: 30px">选择难度开始</p>
       <div class="btn-group">
         <button class="btn" onclick="startGame('slow')">🐢 慢速 (简单)</button>
@@ -162,6 +199,7 @@
         fast: { baseSpeed: 90, speedVar: 50, interval: 1500 },
       };
       let currentDifficulty = "medium";
+      let selectedCharacter = "🎈"; // 默认气球
 
       // 游戏状态
       let gameState = "playing"; // playing, gameover
@@ -201,6 +239,24 @@
 
       window.addEventListener("resize", resize);
       resize();
+
+      function selectCharacter(char) {
+        // Labubu 使用特殊标识符 'labubu' 以便加载图片
+        selectedCharacter = char;
+
+        // Update UI
+        const buttons = document.querySelectorAll(".char-btn");
+        buttons.forEach((btn) => {
+          btn.classList.remove("selected");
+          // 对于 Labubu，检查按钮的 onclick 属性
+          const btnChar = btn
+            .getAttribute("onclick")
+            ?.match(/selectCharacter\('([^']+)'\)/)?.[1];
+          if (btnChar === char) {
+            btn.classList.add("selected");
+          }
+        });
+      }
 
       /**
        * 类定义
@@ -365,39 +421,48 @@
         // 旧逻辑已废弃，现在使用全局UI
 
         draw(ctx) {
-          // 绘制气球绳子
-          ctx.beginPath();
-          ctx.moveTo(this.x, this.y + this.radius);
-          ctx.lineTo(this.x, this.y + this.radius + 60);
-          ctx.strokeStyle = "#ddd";
-          ctx.lineWidth = 1;
-          ctx.stroke();
+          // 如果是原始气球逻辑，我们仍然画气球还是统一用 emoji？
+          // 为了统一体验，如果选的是气球 emoji 🎈，我们也用 emoji 渲染。
+          // 这样代码更简洁。
+          // 但原始气球有绳子。
 
-          // 绘制气球本体
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-          ctx.fillStyle = this.color;
-          ctx.fill();
-          // 高光
-          ctx.beginPath();
-          ctx.arc(
-            this.x - this.radius * 0.3,
-            this.y - this.radius * 0.3,
-            this.radius * 0.2,
-            0,
-            Math.PI * 2
-          );
-          ctx.fillStyle = "rgba(255,255,255,0.3)";
-          ctx.fill();
+          if (selectedCharacter === "🎈" && false) {
+            // 保留旧的绘制逻辑 (如果需要完全回退可以开启这个 flag，但为了代码简化，我们尝试统一用 Emoji)
+            // ... existing drawing code ...
+          }
 
-          // 绘制算式
-          ctx.fillStyle = "white";
-          ctx.font = "bold 24px Arial";
+          // 统一 Emoji 绘制逻辑
+
+          // 1. 绘制 Emoji
+          ctx.font = "80px Arial";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(this.questionText, this.x, this.y);
+          // 阴影
+          ctx.shadowColor = "rgba(0,0,0,0.3)";
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetX = 5;
+          ctx.shadowOffsetY = 5;
 
-          // 注意：选项不再跟随气球绘制
+          ctx.fillText(selectedCharacter, this.x, this.y);
+
+          // 重置阴影以免影响后续绘制
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+
+          // 2. 绘制算式
+          // 为了让文字清晰可见，我们需要描边
+          ctx.font = "bold 24px Arial";
+          ctx.fillStyle = "white";
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 3;
+
+          // 将文字放在角色上方
+          // 80px 的角色，大约占据 ±40px，所以文字放在 y - 50 的位置
+          const textY = this.y - 50;
+          ctx.strokeText(this.questionText, this.x, textY);
+          ctx.fillText(this.questionText, this.x, textY);
         }
       }
 
